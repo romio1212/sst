@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
+<head> 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Sector Tracker v1.0 | 한국·미국 섹터 등락률 트래커</title>
@@ -2634,43 +2634,59 @@ if(!sec) return;
 const stocks=sec.stocks;
 const n=stocks.length;
 const checkboxes=[...document.querySelectorAll('#admin-stock-list input[type=checkbox]')];
-const checkedIdx=checkboxes.map((c,i)=>c.checked?i:-1).filter(i=>i>=0);
-if(!checkedIdx.length){showMsg('stock-msg','⚠️ 이동할 종목을 선택하세요.',true);return;}
-const selected=checkedIdx.map(i=>stocks[i]);
-const rest=stocks.filter((_,i)=>!checkedIdx.includes(i));
-let newStocks;
+const checkedSet=new Set(checkboxes.map((c,i)=>c.checked?i:-1).filter(i=>i>=0));
+if(!checkedSet.size){showMsg('stock-msg','⚠️ 이동할 종목을 선택하세요.',true);return;}
+const tags=stocks.map((_,i)=>checkedSet.has(i));
+let newTags,newStocks;
 if(dir==='top'){
-newStocks=[...selected,...rest];
-} else if(dir==='bottom'){
-newStocks=[...rest,...selected];
-} else if(dir==='up'){
-newStocks=[...stocks];
-const sorted=[...checkedIdx].sort((a,b)=>a-b);
-for(const i of sorted){
-if(i>0 && !checkedIdx.includes(i-1)){
-[newStocks[i-1],newStocks[i]]=[newStocks[i],newStocks[i-1]];
+newStocks=[...stocks.filter((_,i)=>tags[i]),...stocks.filter((_,i)=>!tags[i])];
+newTags=newStocks.map((_,i)=>i<checkedSet.size);
+}else if(dir==='bottom'){
+newStocks=[...stocks.filter((_,i)=>!tags[i]),...stocks.filter((_,i)=>tags[i])];
+newTags=newStocks.map((_,i)=>i>=n-checkedSet.size);
+}else if(dir==='up'){
+newTags=[...tags];newStocks=[...stocks];
+let i=0;
+while(i<n){
+if(newTags[i]){
+const blockStart=i;
+while(i<n&&newTags[i])i++;
+const blockEnd=i;
+if(blockStart>0&&!newTags[blockStart-1]){
+const item=newStocks.splice(blockStart-1,1)[0];
+newTags.splice(blockStart-1,1);
+newStocks.splice(blockEnd-1,0,item);
+newTags.splice(blockEnd-1,0,false);
 }
+}else{i++;}
 }
-} else if(dir==='down'){
-newStocks=[...stocks];
-const sorted=[...checkedIdx].sort((a,b)=>b-a);
-for(const i of sorted){
-if(i<n-1 && !checkedIdx.includes(i+1)){
-[newStocks[i+1],newStocks[i]]=[newStocks[i],newStocks[i+1]];
+}else if(dir==='down'){
+newTags=[...tags];newStocks=[...stocks];
+let i=n-1;
+while(i>=0){
+if(newTags[i]){
+const blockEnd=i;
+while(i>=0&&newTags[i])i--;
+const blockStart=i+1;
+if(blockEnd<n-1&&!newTags[blockEnd+1]){
+const item=newStocks.splice(blockEnd+1,1)[0];
+newTags.splice(blockEnd+1,1);
+newStocks.splice(blockStart,0,item);
+newTags.splice(blockStart,0,false);
 }
+}else{i--;}
 }
 }
 sec.stocks=newStocks;
 const orderedNames=newStocks.map(s=>s.name).join(',');
 showMsg('stock-msg','저장 중...',false);
 try{
-await adminPost('reorder_stocks',{sector:ADM.selectedSector, order:orderedNames});
-showMsg('stock-msg','✅ 순서 저장 완료 ('+checkedIdx.length+'개 종목)',false);
-}catch(e){
-showMsg('stock-msg','❌ 저장 실패: '+e.message,true);
-}
+await adminPost('reorder_stocks',{sector:ADM.selectedSector,order:orderedNames});
+showMsg('stock-msg','✅ 순서 저장 완료 ('+checkedSet.size+'개 종목)',false);
+}catch(e){showMsg('stock-msg','❌ 저장 실패: '+e.message,true);}
 document.getElementById('admin-stock-panel-title').textContent='📋 '+ADM.selectedSector+' 종목 ('+newStocks.length+'개)';
-renderStockList(sec, ADM.selectedSector);
+renderStockList(sec,ADM.selectedSector);
+newTags.forEach((sel,i)=>{const cb=document.getElementById('chk-'+i);if(cb)cb.checked=sel;});
 }
 async function moveStock(idx, dir){
 const sec=ADM.sectors.find(s=>s.sector===ADM.selectedSector);
