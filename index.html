@@ -2639,26 +2639,45 @@ if(!checkedIdx.length){showMsg('stock-msg','⚠️ 이동할 종목을 선택하
 const selected=checkedIdx.map(i=>stocks[i]);
 const rest=stocks.filter((_,i)=>!checkedIdx.includes(i));
 let newStocks;
+let newCheckedIdx;
 if(dir==='top'){
 newStocks=[...selected,...rest];
+newCheckedIdx=selected.map((_,i)=>i);
 } else if(dir==='bottom'){
 newStocks=[...rest,...selected];
+newCheckedIdx=selected.map((_,i)=>rest.length+i);
 } else if(dir==='up'){
+// 선택된 인덱스를 오름차순 정렬 후, 각 종목을 새 배열에서 올바른 위치로 이동
+// 핵심: swap 후 이미 이동한 인덱스 집합을 실시간으로 갱신
 newStocks=[...stocks];
 const sorted=[...checkedIdx].sort((a,b)=>a-b);
+const movedSet=new Set(checkedIdx);
+const newMovedSet=new Set();
 for(const i of sorted){
-if(i>0 && !checkedIdx.includes(i-1)){
-[newStocks[i-1],newStocks[i]]=[newStocks[i],newStocks[i-1]];
+const target=i-1;
+if(target>=0 && !newMovedSet.has(target)){
+[newStocks[target],newStocks[i]]=[newStocks[i],newStocks[target]];
+newMovedSet.add(target);
+} else {
+newMovedSet.add(i);
 }
 }
+newCheckedIdx=[...newMovedSet].sort((a,b)=>a-b);
 } else if(dir==='down'){
+// 내림차순 정렬 후 아래로 이동, 이미 이동한 인덱스 추적
 newStocks=[...stocks];
 const sorted=[...checkedIdx].sort((a,b)=>b-a);
+const newMovedSet=new Set();
 for(const i of sorted){
-if(i<n-1 && !checkedIdx.includes(i+1)){
-[newStocks[i+1],newStocks[i]]=[newStocks[i],newStocks[i+1]];
+const target=i+1;
+if(target<n && !newMovedSet.has(target)){
+[newStocks[target],newStocks[i]]=[newStocks[i],newStocks[target]];
+newMovedSet.add(target);
+} else {
+newMovedSet.add(i);
 }
 }
+newCheckedIdx=[...newMovedSet].sort((a,b)=>a-b);
 }
 sec.stocks=newStocks;
 const orderedNames=newStocks.map(s=>s.name).join(',');
@@ -2671,6 +2690,13 @@ showMsg('stock-msg','❌ 저장 실패: '+e.message,true);
 }
 document.getElementById('admin-stock-panel-title').textContent='📋 '+ADM.selectedSector+' 종목 ('+newStocks.length+'개)';
 renderStockList(sec, ADM.selectedSector);
+// 이동 후 선택 상태 복원
+if(newCheckedIdx && newCheckedIdx.length){
+newCheckedIdx.forEach(i=>{
+const cb=document.getElementById('chk-'+i);
+if(cb) cb.checked=true;
+});
+}
 }
 async function moveStock(idx, dir){
 const sec=ADM.sectors.find(s=>s.sector===ADM.selectedSector);
